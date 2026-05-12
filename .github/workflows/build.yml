@@ -3,6 +3,9 @@ name: Build MessengerDesk Windows Installer
 on:
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-windows:
     name: Build & Package (Windows)
@@ -86,7 +89,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MessengerDesk-Setup-${{ github.ref_name }}
-          path: release/*-Setup.exe
+          path: release/*Setup*.exe          # matches "MessengerDesk Setup 1.0.0.exe"
           if-no-files-found: warn
           retention-days: 30
 
@@ -133,7 +136,7 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
           generate_release_notes: true
           files: |
-            dist-artifacts/*-Setup.exe
+            dist-artifacts/*Setup*.exe
             dist-artifacts/*-portable.exe
             dist-artifacts/latest.yml
         env:
