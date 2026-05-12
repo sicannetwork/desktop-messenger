@@ -158,18 +158,4 @@ export const WebviewContainer: React.FC<Props> = ({ url }) => {
   );
 };
 
-// Extend JSX for Electron's <webview> tag.
-// Must match the base HTMLWebViewElement signature to avoid TS2717.
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      webview: React.DetailedHTMLProps<
-        React.WebViewHTMLAttributes<HTMLWebViewElement> & {
-          partition?:      string;
-          webpreferences?: string;
-        },
-        HTMLWebViewElement
-      >;
-    }
-  }
-}
+
