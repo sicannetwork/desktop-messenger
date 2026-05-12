@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { TitleBar }         from "./components/TitleBar";
 import { SplashScreen }     from "./components/SplashScreen";
 import { SettingsPanel }    from "./components/Settings";
