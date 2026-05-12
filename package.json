@@ -2,7 +2,7 @@
   "name": "messengerdesk",
   "version": "1.0.0",
   "description": "Native Windows desktop app for Facebook Messenger",
-  "main": "dist-electron/main/index.js",
+  "main": "dist-electron/electron/main/index.js",
   "author": {
     "name": "MessengerDesk",
     "email": "support@messengerdesk.app"
