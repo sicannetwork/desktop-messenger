@@ -1,3 +1,4 @@
+// FILE: electron/preload/index.ts
 /**
  * MessengerDesk — Preload Script
  *
@@ -46,6 +47,8 @@ const RECEIVE_CHANNELS = new Set<string>([
   "nav:settings",
   "nav:newMessage",
   "update:check",
+  // ── Debug channels (used to surface main-process errors into the UI) ──────
+  "debug:load-failure",
 ]);
 
 // ─── Exposed API ──────────────────────────────────────────────────────────────
