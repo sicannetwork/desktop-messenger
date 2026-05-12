@@ -60,7 +60,7 @@ export function showNotification(payload: NotifyPayload): void {
 // Messenger branding colour and action buttons.
 
 function buildToastXml(payload: NotifyPayload): string {
-  const appId = app.getAppUserModelId() || "MessengerDesk";
+  const appId = app.getName() || "MessengerDesk";
   return `
 <toast activationType="foreground">
   <visual>
