@@ -1,0 +1,75 @@
+# MessengerDesk — Electron Builder Configuration
+# Generates: Windows NSIS installer (.exe) and portable build
+
+appId: com.messengerdesk.app
+productName: MessengerDesk
+copyright: "Copyright © 2026 MessengerDesk"
+
+# ── Directories ────────────────────────────────────────────────────────────────
+directories:
+  output: release
+  buildResources: assets
+
+# ── Files ──────────────────────────────────────────────────────────────────────
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - "!**/*.map"
+  - "!**/*.ts"
+
+# ── Extra resources bundled into the installer ─────────────────────────────────
+extraResources:
+  - from: assets/icon.ico
+    to: icon.ico
+  - from: assets/tray.ico
+    to: tray.ico
+  - from: assets/tray-badge.ico
+    to: tray-badge.ico
+
+# ── Windows only ───────────────────────────────────────────────────────────────
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: assets/icon.ico
+  # AppUserModelId must match what main/index.ts sets
+  appId: com.messengerdesk.app
+  # Code signing: supply via env vars in CI
+  # certificateFile: ${env.WIN_CERT_FILE}
+  # certificatePassword: ${env.WIN_CERT_PASSWORD}
+  # signingHashAlgorithms: [sha256]
+
+# ── NSIS installer ────────────────────────────────────────────────────────────
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: MessengerDesk
+  installerIcon: assets/icon.ico
+  uninstallerIcon: assets/icon.ico
+  installerHeaderIcon: assets/icon.ico
+  differentialPackage: true
+  displayLanguageSelector: false
+  # Custom NSIS script for advanced installer pages (optional):
+  # include: build/installer.nsh
+
+# ── Portable ──────────────────────────────────────────────────────────────────
+portable:
+  artifactName: MessengerDesk-${version}-portable.exe
+
+# ── Auto-update (Squirrel.Windows / NSIS) ─────────────────────────────────────
+publish:
+  provider: github
+  owner: your-org        # ← replace with your actual GitHub username or org
+  repo: messengerdesk   # ← replace with your actual repo name
+  # Set GH_TOKEN env var in CI
+
+# ── Performance ───────────────────────────────────────────────────────────────
+compression: maximum
+asar: true
+asarUnpack:
+  - "**/node_modules/electron-log/**"
+  - "**/node_modules/electron-store/**"

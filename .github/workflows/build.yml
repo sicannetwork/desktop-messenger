@@ -63,7 +63,7 @@ jobs:
 
       # ── 8. Package with Electron Builder ─────────────────────────────────────
       - name: Package — NSIS installer + portable EXE
-        run: npx electron-builder --win --x64
+        run: npx electron-builder --win --x64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Code signing (optional — uncomment when you have a cert):
