@@ -1,3 +1,4 @@
+// FILE: electron/main/windowManager.ts
 import {
   BrowserWindow,
   app,
@@ -10,10 +11,17 @@ import { getSetting, setSetting } from "./store";
 import { IPC, WindowStatePayload } from "../../shared/ipc-types";
 import { logger } from "./logger";
 
-const PRELOAD_PATH = path.join(__dirname, "../preload/index.js");
-const DEV_URL      = "http://localhost:5173";
-const PROD_URL     = `file://${path.join(__dirname, "../../../dist/index.html")}`;
-const isDev        = process.env.NODE_ENV === "development";
+const PRELOAD_PATH  = path.join(__dirname, "../preload/index.js");
+const DEV_URL       = "http://localhost:5173";
+// ── FIX: Do NOT build file:// URLs with path.join on Windows — backslashes
+//        produce a malformed URL that Electron silently fails to load.
+//        We store the raw filesystem path and call loadFile() instead.
+const PROD_FILE_PATH = path.join(__dirname, "../../../dist/index.html");
+const isDev          = process.env.NODE_ENV === "development";
+
+logger.info(`[windowManager] isDev=${isDev}`);
+logger.info(`[windowManager] PRELOAD_PATH=${PRELOAD_PATH}`);
+logger.info(`[windowManager] PROD_FILE_PATH=${PROD_FILE_PATH}`);
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -48,8 +56,9 @@ export function createMainWindow(): BrowserWindow {
       sandbox:              false,          // Must be false to allow <webview> tag
       webviewTag:           true,           // Required for <webview> to render
       spellcheck:           getSetting("spellcheck"),
-      // Allow devtools only in development
-      devTools:             isDev,
+      // ── FIX: Always enable devTools so you can Ctrl+Shift+I in production
+      //         to inspect a blank-screen renderer error.
+      devTools:             true,
     },
     titleBarStyle:   "hidden",
     // Windows-specific title bar overlay (Win11 Mica-style buttons)
@@ -60,13 +69,73 @@ export function createMainWindow(): BrowserWindow {
     mainWindow.maximize();
   }
 
-  const url = isDev ? DEV_URL : PROD_URL;
-  logger.info(`Loading app from: ${url}`);
-  mainWindow.loadURL(url);
+  // ── Load the renderer ─────────────────────────────────────────────────────
+  // In dev: load from Vite dev server.
+  // In prod: use loadFile() — the Electron-safe API for file:// loading on
+  //          Windows.  Building "file://" + path.join() produces backslashes
+  //          on Windows which makes a malformed URL and yields a blank window.
+  if (isDev) {
+    logger.info(`[windowManager] Loading DEV URL: ${DEV_URL}`);
+    mainWindow.loadURL(DEV_URL).catch((err) => {
+      logger.error("[windowManager] loadURL (dev) failed:", err);
+    });
+  } else {
+    logger.info(`[windowManager] Loading prod file: ${PROD_FILE_PATH}`);
+    mainWindow.loadFile(PROD_FILE_PATH).catch((err) => {
+      logger.error("[windowManager] loadFile (prod) failed:", err);
+    });
+  }
 
-  // Show window gracefully after React mounts
+  // ── Renderer load failure ─────────────────────────────────────────────────
+  // "did-fail-load" fires when the HTML file is not found or network fails.
+  // Without this handler the window is silent — user just sees black.
+  mainWindow.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedURL) => {
+      logger.error(
+        `[windowManager] did-fail-load  code=${errorCode}  desc="${errorDescription}"  url="${validatedURL}"`
+      );
+      // Send a diagnostic message to the renderer so it can display it.
+      // (If the renderer itself failed to load, this is a no-op but harmless.)
+      mainWindow?.webContents.send("debug:load-failure", {
+        errorCode,
+        errorDescription,
+        validatedURL,
+      });
+    }
+  );
+
+  // ── Renderer process crash ────────────────────────────────────────────────
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    logger.error(
+      `[windowManager] Renderer process gone — reason: ${details.reason}  exitCode: ${details.exitCode}`
+    );
+  });
+
+  mainWindow.webContents.on("unresponsive", () => {
+    logger.warn("[windowManager] Renderer is unresponsive");
+  });
+
+  // ── Forward renderer console messages to the log file ────────────────────
+  // In production devTools are disabled, so renderer errors are otherwise
+  // invisible.  This mirrors them into the electron-log file.
+  mainWindow.webContents.on(
+    "console-message",
+    (_event, level, message, line, sourceId) => {
+      const tag = ["verbose", "info", "warn", "error"][level] ?? "info";
+      const text = `[renderer/${tag}] ${message}  (${sourceId}:${line})`;
+      if (level >= 3) logger.error(text);
+      else if (level === 2) logger.warn(text);
+      else logger.debug(text);
+    }
+  );
+
+  // Show window gracefully after React mounts.
+  // devTools: open detached in dev; in production we enable them but don't
+  // auto-open so the user can press Ctrl+Shift+I for on-demand inspection.
   mainWindow.once("ready-to-show", () => {
     mainWindow!.show();
+    logger.info("[windowManager] Window shown (ready-to-show)");
     if (isDev) {
       mainWindow!.webContents.openDevTools({ mode: "detach" });
     }
@@ -171,8 +240,14 @@ function ensureVisibleOnDisplay(
     );
   });
   if (!visible) {
-    const { x, y } = undefined as unknown as { x: undefined; y: undefined };
-    return { ...bounds, x, y };
+    // ── FIX: The original code did:
+    //      const { x, y } = undefined as unknown as { x: undefined; y: undefined };
+    //   Destructuring `undefined` throws a TypeError and crashes window creation.
+    //   Intent was to reset x/y so Electron centres the window on the primary display.
+    logger.warn(
+      "[windowManager] Saved window position is off all displays — resetting to centre"
+    );
+    return { ...bounds, x: undefined, y: undefined };
   }
   return bounds;
 }
