@@ -128,7 +128,7 @@ export default function App() {
 
         {/* Webview — the entire Messenger.com UI */}
         <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
-          <WebviewContainer url={MESSENGER_URL} onDebugMessage={pushDebug} />
+          <WebviewContainer url={MESSENGER_URL} onDebugMessage={(msg) => pushDebug(msg.level, msg.text)} />
         </div>
 
         {/* Overlays */}
