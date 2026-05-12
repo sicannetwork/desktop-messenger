@@ -1,12 +1,8 @@
 import { session, app } from "electron";
-import path from "path";
 import { logger } from "./logger";
+import { MESSENGER_PARTITION } from "../../shared/ipc-types";
 
-/**
- * The dedicated session partition for messenger.com.
- * "persist:" prefix means cookies/storage survive app restarts.
- */
-export const MESSENGER_PARTITION = "persist:messenger";
+export { MESSENGER_PARTITION };
 
 /**
  * Configures the Messenger session with:
@@ -46,15 +42,15 @@ export function configureMessengerSession(): void {
 
   // ── Certificate validation ─────────────────────────────────────────────────
   // Only allow Meta's CDN & FB certs; reject anything unexpected.
-  ses.setCertificateVerifyProc((request, callback) => {
+  ses.setCertificateVerifyProc((_request, callback) => {
     // CALLBACK_DEFAULT (-3) = Electron's normal Chromium validation.
     // We rely on Chromium's cert pinning for Meta domains.
     callback(-3);
   });
 
   // ── Permission handling ────────────────────────────────────────────────────
-  ses.setPermissionRequestHandler((webContents, permission, callback) => {
-    const allowed: Electron.Permission[] = [
+  ses.setPermissionRequestHandler((_webContents, permission, callback) => {
+    const allowed: string[] = [
       "notifications",
       "media",        // mic/camera for voice/video calls
       "clipboard-read",
@@ -73,7 +69,6 @@ export async function clearMessengerSession(): Promise<void> {
     storages: [
       "cookies",
       "localstorage",
-      "sessionstorage",
       "indexdb",
       "websql",
       "serviceworkers",
