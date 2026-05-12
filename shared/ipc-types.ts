@@ -6,6 +6,13 @@
 
 // ─── Channel Names ────────────────────────────────────────────────────────────
 
+/**
+ * The dedicated session partition for messenger.com.
+ * Declared here (shared) so both the renderer and electron main can import it
+ * without the renderer pulling in Node-only electron imports.
+ */
+export const MESSENGER_PARTITION = "persist:messenger";
+
 export const IPC = {
   // Window control
   WINDOW_MINIMIZE: "window:minimize",
