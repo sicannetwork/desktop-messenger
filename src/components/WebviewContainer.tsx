@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useCallback } from "react";
 import { useStore } from "../store/useStore";
-import { MESSENGER_PARTITION } from "../../electron/main/sessionManager";
+import { MESSENGER_PARTITION } from "../../shared/ipc-types";
 
 // ── Messenger-specific content script injected into the webview ────────────────
 // This script runs inside the messenger.com page context to:
@@ -67,7 +67,7 @@ export const WebviewContainer: React.FC<Props> = ({ url }) => {
       wv.executeJavaScript(INJECTED_SCRIPT).catch(console.error);
     });
 
-    wv.addEventListener("did-navigate", (e) => {
+    wv.addEventListener("did-navigate", (_e) => {
       window.electron.webview.updateTitle(document.title);
     });
 
@@ -113,10 +113,14 @@ export const WebviewContainer: React.FC<Props> = ({ url }) => {
     if (!wv) return;
 
     // WebviewTag is not a standard DOM element — need to wait for "ready"
-    if (wv.getWebContentsId) {
+    if (wv.getWebContentsId() !== -1) {
       attachListeners();
     } else {
-      wv.addEventListener("dom-ready", attachListeners, { once: true });
+      const domReadyOnce = () => {
+        wv.removeEventListener("dom-ready", domReadyOnce);
+        attachListeners();
+      };
+      wv.addEventListener("dom-ready", domReadyOnce);
     }
   }, [attachListeners]);
 
@@ -137,7 +141,7 @@ export const WebviewContainer: React.FC<Props> = ({ url }) => {
 
   return (
     <webview
-      ref={ref as React.RefObject<HTMLElement> & React.RefObject<Electron.WebviewTag>}
+      ref={ref as unknown as React.RefObject<HTMLWebViewElement>}
       src={url}
       partition={MESSENGER_PARTITION}
       style={{
@@ -148,25 +152,23 @@ export const WebviewContainer: React.FC<Props> = ({ url }) => {
         border:  "none",
         outline: "none",
       }}
-      allowpopups="true"
+      allowpopups
       webpreferences="contextIsolation=yes, nodeIntegration=no, spellcheck=yes"
     />
   );
 };
 
-// Extend JSX for webview tag
+// Extend JSX for Electron's <webview> tag.
+// Must match the base HTMLWebViewElement signature to avoid TS2717.
 declare global {
   namespace JSX {
     interface IntrinsicElements {
       webview: React.DetailedHTMLProps<
-        React.HTMLAttributes<HTMLElement> & {
-          src?:            string;
+        React.WebViewHTMLAttributes<HTMLWebViewElement> & {
           partition?:      string;
-          allowpopups?:    string;
           webpreferences?: string;
-          ref?:            React.Ref<Electron.WebviewTag>;
         },
-        HTMLElement
+        HTMLWebViewElement
       >;
     }
   }
