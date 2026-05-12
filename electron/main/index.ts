@@ -1,3 +1,4 @@
+// FILE: electron/main/index.ts
 /**
  * MessengerDesk — Electron Main Process
  * Entry point: bootstraps all subsystems in the correct order.
@@ -11,6 +12,41 @@ import { createMainWindow, getMainWindow } from "./windowManager";
 import { createTray, destroyTray } from "./trayManager";
 import { registerIpcHandlers } from "./ipcHandlers";
 import { IPC } from "../../shared/ipc-types";
+import path from "path";
+import fs from "fs";
+
+// ─── EARLIEST POSSIBLE: init logger so all subsequent errors are captured ──────
+// (initLogger() normally runs inside app.whenReady, but we need it NOW so that
+//  crashes during the pre-ready phase land in the log file instead of disappearing.)
+try {
+  initLogger();
+} catch (_) {
+  // If the log dir isn't writable yet, fall through — console still works.
+}
+
+logger.info("=== MessengerDesk main process starting ===");
+logger.info(`Node ${process.versions.node} | Electron ${process.versions.electron}`);
+logger.info(`Platform: ${process.platform} ${process.arch}`);
+logger.info(`__dirname: ${__dirname}`);
+logger.info(`process.resourcesPath: ${(process as NodeJS.Process & { resourcesPath?: string }).resourcesPath}`);
+
+// Log the dist/index.html path so we can confirm it exists in the package
+const expectedDistIndex = path.join(__dirname, "../../../dist/index.html");
+logger.info(`Expected dist/index.html: ${expectedDistIndex}`);
+try {
+  const exists = fs.existsSync(expectedDistIndex);
+  logger.info(`  → dist/index.html exists on disk: ${exists}`);
+} catch (e) {
+  logger.error(`  → Could not stat dist/index.html:`, e);
+}
+
+// ─── Catch any unhandled errors before app.whenReady() ────────────────────────
+process.on("uncaughtException", (err) => {
+  logger.error("[main] uncaughtException (pre-ready):", err);
+});
+process.on("unhandledRejection", (reason) => {
+  logger.error("[main] unhandledRejection (pre-ready):", reason);
+});
 
 // ─── Single instance lock ─────────────────────────────────────────────────────
 const gotLock = app.requestSingleInstanceLock();
@@ -30,8 +66,17 @@ app.on("second-instance", () => {
 
 // ─── Hardware acceleration ────────────────────────────────────────────────────
 // Must be called before app "ready".
-if (!getSetting("hardwareAcceleration")) {
-  app.disableHardwareAcceleration();
+// ── FIX: Wrap in try/catch — electron-store reads userData path here, which
+//         can throw on some Windows configurations before app is ready.
+try {
+  const hwAccel = getSetting("hardwareAcceleration");
+  logger.info(`[main] hardwareAcceleration setting: ${hwAccel}`);
+  if (!hwAccel) {
+    app.disableHardwareAcceleration();
+    logger.info("[main] Hardware acceleration disabled per user setting");
+  }
+} catch (err) {
+  logger.error("[main] Failed to read hardwareAcceleration setting — leaving HW accel enabled:", err);
 }
 
 // ─── Windows-specific app metadata ────────────────────────────────────────────
@@ -41,24 +86,46 @@ if (process.platform === "win32") {
 
 // ─── App ready ────────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
-  initLogger();
-  logger.info(`=== MessengerDesk ${app.getVersion()} starting ===`);
-  logger.info(`Electron ${process.versions.electron} | Node ${process.versions.node}`);
+  // initLogger() already called at top of file; call again is a no-op but safe.
+  logger.info(`=== MessengerDesk ${app.getVersion()} ready ===`);
+  logger.info(`userData path: ${app.getPath("userData")}`);
 
   // Remove default application menu (we use custom title bar).
   Menu.setApplicationMenu(null);
 
   // Configure the isolated Messenger session BEFORE window creation.
-  configureMessengerSession();
+  try {
+    configureMessengerSession();
+    logger.info("[main] Session configured");
+  } catch (err) {
+    logger.error("[main] configureMessengerSession failed:", err);
+  }
 
   // Register all IPC channels.
-  registerIpcHandlers();
+  try {
+    registerIpcHandlers();
+    logger.info("[main] IPC handlers registered");
+  } catch (err) {
+    logger.error("[main] registerIpcHandlers failed:", err);
+  }
 
   // Create and show the main window.
-  const win = createMainWindow();
+  let win: Electron.BrowserWindow;
+  try {
+    win = createMainWindow();
+    logger.info("[main] Main window created");
+  } catch (err) {
+    logger.error("[main] createMainWindow FAILED — this is why you see a blank screen:", err);
+    return;
+  }
 
   // Create system tray after window.
-  createTray(win);
+  try {
+    createTray(win);
+    logger.info("[main] Tray created");
+  } catch (err) {
+    logger.warn("[main] createTray failed (non-fatal):", err);
+  }
 
   // Sync native dark/light mode → renderer on OS theme change.
   nativeTheme.on("updated", () => {
