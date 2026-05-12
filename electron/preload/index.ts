@@ -61,7 +61,9 @@ const electronBridge = {
     close:       ()        => safeSend(IPC.WINDOW_CLOSE),
     isMaximized: ()        => safeInvoke<boolean>(IPC.WINDOW_IS_MAXIMIZED),
     onStateChanged: (cb: (state: { isMaximized: boolean; isFullScreen: boolean }) => void) =>
-      listen(IPC.WINDOW_STATE_CHANGED, cb),
+      listen(IPC.WINDOW_STATE_CHANGED, (...args) =>
+        cb(args[0] as { isMaximized: boolean; isFullScreen: boolean })
+      ),
   },
 
   // Tray
