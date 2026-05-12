@@ -1,9 +1,12 @@
-import { useEffect } from "react";
+// FILE: src/App.tsx
+import { useEffect, useState, useCallback } from "react";
 import { TitleBar }         from "./components/TitleBar";
 import { SplashScreen }     from "./components/SplashScreen";
 import { SettingsPanel }    from "./components/Settings";
 import { WebviewContainer } from "./components/WebviewContainer";
 import { ErrorBoundary }    from "./components/ErrorBoundary";
+import { DebugOverlay }     from "./components/DebugOverlay";
+import type { DebugMessage } from "./components/DebugOverlay";
 import { useStore }         from "./store/useStore";
 import type { WindowStatePayload } from "../shared/ipc-types";
 
@@ -21,21 +24,42 @@ export default function App() {
     setShowSettings,
   } = useStore();
 
+  const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
+
+  const pushDebug = useCallback((level: DebugMessage["level"], text: string) => {
+    console[level](`[App] ${text}`);
+    setDebugMessages(prev => [...prev, { level, text, ts: Date.now() }]);
+  }, []);
+
   // ── Bootstrap: load settings & app version from main ──────────────────────
   useEffect(() => {
+    // Check the bridge is available before trying to use it
+    if (typeof (window as unknown as { electron?: unknown }).electron === "undefined") {
+      pushDebug("error", "window.electron is undefined — the preload script did not expose the bridge. Cannot load settings.");
+      return;
+    }
+
     (async () => {
-      const [settings, version] = await Promise.all([
-        window.electron.settings.get(),
-        window.electron.app.getVersion(),
-      ]);
-      setSettings(settings);
-      setAppVersion(version);
+      try {
+        const [settings, version] = await Promise.all([
+          window.electron.settings.get(),
+          window.electron.app.getVersion(),
+        ]);
+        setSettings(settings);
+        setAppVersion(version);
+        pushDebug("info", `Settings loaded. App version: ${version.version}`);
+      } catch (err) {
+        pushDebug("error", `Failed to load settings/version from main: ${err}`);
+      }
 
       // Apply zoom from persisted setting
       window.electron.webview?.updateUnreadCount?.(0);
 
       // Derive initial theme from system or user preference
-      applyTheme(settings.theme);
+      try {
+        const s = await window.electron.settings.get();
+        applyTheme(s.theme);
+      } catch (_) { /* non-fatal */ }
     })();
   }, []);
 
@@ -104,12 +128,16 @@ export default function App() {
 
         {/* Webview — the entire Messenger.com UI */}
         <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
-          <WebviewContainer url={MESSENGER_URL} />
+          <WebviewContainer url={MESSENGER_URL} onDebugMessage={pushDebug} />
         </div>
 
         {/* Overlays */}
         <SplashScreen visible={isLoading} />
         {showSettings && <SettingsPanel />}
+
+        {/* Debug overlay — surfaces startup errors as an in-app console panel.
+            Only appears when there are error-level messages. */}
+        <DebugOverlay extraMessages={debugMessages} />
       </div>
     </ErrorBoundary>
   );
