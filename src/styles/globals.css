@@ -1,0 +1,58 @@
+/* MessengerDesk — Shell Global Styles */
+/* These only style the Electron chrome (title bar, settings panel).
+   The messenger.com UI is rendered inside <webview> with its own stylesheets. */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: #0a0a0a;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: #e4e6eb;
+}
+
+/* Thin scrollbars for settings panel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Selection colour */
+::selection {
+  background: rgba(0, 153, 255, 0.35);
+  color: inherit;
+}
+
+/* Focus rings — keep accessible but styled */
+:focus-visible {
+  outline: 2px solid rgba(0, 153, 255, 0.7);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Remove outline for mouse/touch interactions */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Light theme overrides */
+[data-theme="light"] body,
+[data-theme="light"] #root {
+  background: #f0f2f5;
+  color: #050505;
+}
