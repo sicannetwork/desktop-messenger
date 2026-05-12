@@ -12,7 +12,7 @@ import { logger } from "./logger";
 
 const PRELOAD_PATH = path.join(__dirname, "../preload/index.js");
 const DEV_URL      = "http://localhost:5173";
-const PROD_URL     = `file://${path.join(__dirname, "../../dist/index.html")}`;
+const PROD_URL     = `file://${path.join(__dirname, "../../../dist/index.html")}`;
 const isDev        = process.env.NODE_ENV === "development";
 
 let mainWindow: BrowserWindow | null = null;
@@ -45,7 +45,8 @@ export function createMainWindow(): BrowserWindow {
       preload:              PRELOAD_PATH,
       contextIsolation:     true,
       nodeIntegration:      false,
-      sandbox:              true,
+      sandbox:              false,          // Must be false to allow <webview> tag
+      webviewTag:           true,           // Required for <webview> to render
       spellcheck:           getSetting("spellcheck"),
       // Allow devtools only in development
       devTools:             isDev,
