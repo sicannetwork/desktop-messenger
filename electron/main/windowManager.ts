@@ -136,9 +136,9 @@ export function createMainWindow(): BrowserWindow {
   mainWindow.once("ready-to-show", () => {
     mainWindow!.show();
     logger.info("[windowManager] Window shown (ready-to-show)");
-    if (isDev) {
-      mainWindow!.webContents.openDevTools({ mode: "detach" });
-    }
+    // ── Always open DevTools so renderer errors are visible.
+    //    Remove this line once the blank-screen issue is resolved.
+    mainWindow!.webContents.openDevTools({ mode: "detach" });
   });
 
   // ── Window state persistence ───────────────────────────────────────────────
