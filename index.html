@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- FILE: index.html (project root) -->
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -12,14 +13,114 @@
             font-src 'self';
           " />
     <title>Messenger</title>
-    <!--
-      The <webview> tag inside the React app will load messenger.com
-      in its own isolated partition with its own CSP.
-      This HTML + its JS only runs the Electron chrome (title bar, settings, etc.)
-    -->
+    <style>
+      /* Pre-React diagnostic styles — visible immediately if the page loads */
+      #pre-react-status {
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        background: #0a0a0a;
+        color: #8be8cb;
+        font-family: 'Cascadia Code', 'Consolas', monospace;
+        font-size: 12px;
+        padding: 12px 16px;
+        z-index: 999999;
+        border-bottom: 1px solid #1a3a2a;
+        line-height: 1.7;
+      }
+      #pre-react-status .err { color: #ff6b6b; }
+      #pre-react-status .warn { color: #f1c40f; }
+    </style>
   </head>
-  <body>
+  <body style="margin:0;background:#0a0a0a;">
+
+    <!--
+      Pre-React diagnostic panel.
+      This is injected by raw HTML so it works even if the JS bundle
+      completely fails to load. React will replace #root but this panel
+      sits outside it and stays visible until dismissed.
+    -->
+    <div id="pre-react-status">
+      <strong>⏳ MessengerDesk loading…</strong><br/>
+      <span id="prs-html">✓ HTML parsed by Electron</span><br/>
+      <span id="prs-script">⏳ Waiting for JS bundle…</span><br/>
+      <span id="prs-react">⏳ Waiting for React mount…</span><br/>
+      <span id="prs-bridge">⏳ Checking window.electron bridge…</span>
+    </div>
+
     <div id="root"></div>
+
+    <!--
+      Inline bootstrap script — runs BEFORE the Vite bundle.
+      Catches JS errors and missing bridge before React has a chance to run.
+    -->
+    <script>
+      (function () {
+        var panel = document.getElementById('pre-react-status');
+
+        function setLine(id, html, isErr) {
+          var el = document.getElementById(id);
+          if (el) {
+            el.innerHTML = html;
+            if (isErr) el.className = 'err';
+          }
+        }
+
+        // ── 1. JS is running (bundle reached this point) ──────────────────
+        setLine('prs-script', '✓ Inline bootstrap script running');
+
+        // ── 2. Catch any JS errors (bundle crash, syntax error, etc.) ─────
+        window.addEventListener('error', function (e) {
+          panel.style.borderColor = '#ff6b6b';
+          var msg = document.createElement('div');
+          msg.className = 'err';
+          msg.textContent = '✗ JS ERROR: ' + e.message +
+            ' — ' + (e.filename || '?') + ':' + e.lineno;
+          panel.appendChild(msg);
+        });
+
+        window.addEventListener('unhandledrejection', function (e) {
+          panel.style.borderColor = '#ff6b6b';
+          var msg = document.createElement('div');
+          msg.className = 'err';
+          msg.textContent = '✗ Unhandled Promise rejection: ' + String(e.reason);
+          panel.appendChild(msg);
+        });
+
+        // ── 3. Check window.electron bridge (set by preload) ──────────────
+        //    The preload runs before DOMContentLoaded, so by the time this
+        //    script evaluates the bridge should already be present.
+        if (typeof window.electron !== 'undefined') {
+          setLine('prs-bridge', '✓ window.electron bridge present');
+        } else {
+          setLine('prs-bridge',
+            '✗ window.electron is UNDEFINED — preload did not run. ' +
+            'Check: preload path in windowManager, contextIsolation=true, sandbox=false.',
+            true);
+        }
+
+        // ── 4. Signal React mounted (called from main.tsx) ────────────────
+        window.__markReactMounted = function () {
+          setLine('prs-react', '✓ React mounted — hiding panel in 4 s…');
+          setTimeout(function () {
+            if (panel) panel.style.display = 'none';
+          }, 4000);
+        };
+
+        // ── 5. If React hasn't mounted after 15 s, flag it ────────────────
+        setTimeout(function () {
+          var reactEl = document.getElementById('prs-react');
+          if (reactEl && reactEl.textContent.indexOf('⏳') !== -1) {
+            setLine('prs-react',
+              '✗ React did NOT mount within 15 s. Bundle may have crashed — ' +
+              'press Ctrl+Shift+I → Console for details.',
+              true);
+            panel.style.borderColor = '#ff6b6b';
+          }
+        }, 15000);
+
+      })();
+    </script>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
